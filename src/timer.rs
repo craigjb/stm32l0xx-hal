@@ -112,6 +112,11 @@ macro_rules! timers {
                     timer
                 }
 
+                /// Stops the counter
+                fn stop(&mut self) {
+                    self.tim.cr1.modify(|_, w| w.cen().clear_bit());
+                }
+
                 /// Starts listening
                 pub fn listen(&mut self) {
                     self.tim.dier.write(|w| w.uie().set_bit());
@@ -175,10 +180,6 @@ macro_rules! timers {
                     self.tim.egr.write(|w| w.ug().set_bit());
 
                     self.tim.cr1.modify(|_, w| w.cen().set_bit());
-                }
-
-                fn stop(&mut self) {
-                    self.tim.cr1.modify(|_, w| w.cen().clear_bit());
                 }
 
                 fn wait(&mut self) -> nb::Result<(), Void> {
