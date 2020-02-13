@@ -113,7 +113,7 @@ macro_rules! timers {
                 }
 
                 /// Stops the counter
-                fn stop(&mut self) {
+                pub fn stop(&mut self) {
                     self.tim.cr1.modify(|_, w| w.cen().clear_bit());
                 }
 
