@@ -177,6 +177,10 @@ macro_rules! timers {
                     self.tim.cr1.modify(|_, w| w.cen().set_bit());
                 }
 
+                fn stop(&mut self) {
+                    self.tim.cr1.modify(|_, w| w.cen().clear_bit());
+                }
+
                 fn wait(&mut self) -> nb::Result<(), Void> {
                     if self.tim.sr.read().uif().bit_is_clear() {
                         Err(nb::Error::WouldBlock)
