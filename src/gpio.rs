@@ -62,14 +62,6 @@ pub enum AltMode {
     AF7 = 7,
 }
 
-#[cfg(feature = "stm32l0x1")]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Port {
-    PA,
-    PB,
-}
-
-#[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Port {
     PA,
@@ -505,7 +497,6 @@ gpio!(GPIOB, gpiob, iopben, PB, [
     PB15: (pb15, 15, Analog),
 ]);
 
-#[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
 gpio!(GPIOC, gpioc, iopcen, PC, [
     PC0: (pc0, 0, Analog),
     PC1: (pc1, 1, Analog),
@@ -525,7 +516,6 @@ gpio!(GPIOC, gpioc, iopcen, PC, [
     PC15: (pc15, 15, Analog),
 ]);
 
-#[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
 gpio!(GPIOD, gpiod, iopden, PD, [
     PD0: (pd0, 0, Analog),
     PD1: (pd1, 1, Analog),
@@ -545,7 +535,6 @@ gpio!(GPIOD, gpiod, iopden, PD, [
     PD15: (pd15, 15, Analog),
 ]);
 
-#[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
 gpio!(GPIOE, gpioe, iopeen, PE, [
     PE0:  (pe0,  0,  Analog),
     PE1:  (pe1,  1,  Analog),
@@ -565,9 +554,9 @@ gpio!(GPIOE, gpioe, iopeen, PE, [
     PE15: (pe15, 15, Analog),
 ]);
 
-#[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
 gpio!(GPIOH, gpioh, iophen, PH, [
     PH0: (ph0, 0, Analog),
     PH1: (ph1, 1, Analog),
-    PH2: (ph2, 2, Analog),
+    PH9:  (ph9,  9,  Analog),
+    PH10: (ph10, 10, Analog),
 ]);
