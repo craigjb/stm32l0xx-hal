@@ -2,10 +2,7 @@ use crate::pac::RCC;
 use crate::time::{Hertz, U32Ext};
 
 #[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
-use crate::{
-    pac::CRS,
-    syscfg::SYSCFG
-};
+use crate::{pac::CRS, syscfg::SYSCFG};
 
 /// System clock mux source
 #[derive(Clone, Copy)]
@@ -230,7 +227,7 @@ impl RccExt for RCC {
     // This saves ~900 Bytes for the `pwr.rs` example.
     #[inline]
     fn freeze(self, cfgr: Config) -> Rcc {
-        let (sys_clk, sw_bits) = match cfgr.mux {
+        let (sys_clk, sw_bits, pll_freq) = match cfgr.mux {
             ClockSrc::MSI(range) => {
                 let range = range as u8;
                 // Set MSI range
@@ -241,21 +238,21 @@ impl RccExt for RCC {
                 while self.cr.read().msirdy().bit_is_clear() {}
 
                 let freq = 32_768 * (1 << (range + 1));
-                (freq, 0)
+                (freq, 0, None)
             }
             ClockSrc::HSI16 => {
                 // Enable HSI16
                 self.cr.write(|w| w.hsi16on().set_bit());
                 while self.cr.read().hsi16rdyf().bit_is_clear() {}
 
-                (HSI_FREQ, 1)
+                (HSI_FREQ, 1, None)
             }
             ClockSrc::HSE(freq) => {
                 // Enable HSE
                 self.cr.write(|w| w.hseon().set_bit());
                 while self.cr.read().hserdy().bit_is_clear() {}
 
-                (freq.0, 2)
+                (freq.0, 2, None)
             }
             ClockSrc::PLL(src, mul, div) => {
                 let (src_bit, freq) = match src {
@@ -280,7 +277,7 @@ impl RccExt for RCC {
                 let mul_bytes = mul as u8;
                 let div_bytes = div as u8;
 
-                let freq = match mul {
+                let pll_freq = match mul {
                     PLLMul::Mul3 => freq * 3,
                     PLLMul::Mul4 => freq * 4,
                     PLLMul::Mul6 => freq * 6,
@@ -293,9 +290,9 @@ impl RccExt for RCC {
                 };
 
                 let freq = match div {
-                    PLLDiv::Div2 => freq / 2,
-                    PLLDiv::Div3 => freq / 3,
-                    PLLDiv::Div4 => freq / 4,
+                    PLLDiv::Div2 => pll_freq / 2,
+                    PLLDiv::Div3 => pll_freq / 3,
+                    PLLDiv::Div4 => pll_freq / 4,
                 };
                 assert!(freq <= 24.mhz().0);
 
@@ -312,7 +309,7 @@ impl RccExt for RCC {
                 self.cr.modify(|_, w| w.pllon().set_bit());
                 while self.cr.read().pllrdy().bit_is_clear() {}
 
-                (freq, 3)
+                (freq, 3, Some(pll_freq))
             }
         };
 
@@ -350,6 +347,7 @@ impl RccExt for RCC {
 
         let clocks = Clocks {
             source: cfgr.mux,
+            pll_clk: pll_freq.map(|f| f.hz()),
             sys_clk: sys_clk.hz(),
             ahb_clk: ahb_freq.hz(),
             apb1_clk: apb1_freq.hz(),
@@ -368,6 +366,7 @@ impl RccExt for RCC {
 #[derive(Clone, Copy)]
 pub struct Clocks {
     source: ClockSrc,
+    pll_clk: Option<Hertz>,
     sys_clk: Hertz,
     ahb_clk: Hertz,
     apb1_clk: Hertz,
@@ -380,6 +379,10 @@ impl Clocks {
     /// Returns the clock source
     pub fn source(&self) -> &ClockSrc {
         &self.source
+    }
+
+    pub fn pll_clk(&self) -> Option<Hertz> {
+        self.pll_clk
     }
 
     /// Returns the system (core) frequency

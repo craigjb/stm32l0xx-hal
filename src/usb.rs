@@ -14,7 +14,7 @@
 
 use crate::{
     pac::{self, RCC},
-    rcc::HSI48,
+    rcc::{Rcc, HSI48},
 };
 use stm32_usbd::UsbPeripheral;
 
@@ -22,17 +22,17 @@ use crate::gpio::gpioa::{PA11, PA12};
 use crate::gpio::Analog;
 pub use stm32_usbd::UsbBus;
 
+const USB_PLL_FREQ: u32 = 96_000_000;
+
 pub struct USB(());
 
 impl USB {
-    pub fn new(
-        _: pac::USB,
-        _dm: PA11<Analog>,
-        _dp: PA12<Analog>,
-        _: HSI48
-    )
-        -> Self
-    {
+    pub fn new(_: pac::USB, _dm: PA11<Analog>, _dp: PA12<Analog>, _: HSI48) -> Self {
+        Self(())
+    }
+
+    pub fn new_with_pll(_: pac::USB, _dm: PA11<Analog>, _dp: PA12<Analog>, rcc: &Rcc) -> Self {
+        assert!(rcc.clocks.pll_clk().unwrap().0 == USB_PLL_FREQ);
         Self(())
     }
 }
