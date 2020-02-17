@@ -192,6 +192,11 @@ impl_pins!(
     USART5, PE10, PE11, AF6;
 );
 
+#[cfg(feature = "stm32l0x3")]
+impl_pins!(
+    LPUART1, PC10, PC11,  AF0;
+);
+
 /// Serial abstraction
 pub struct Serial<USART> {
     usart: USART,
