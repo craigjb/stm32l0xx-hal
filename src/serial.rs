@@ -452,6 +452,11 @@ macro_rules! usart {
                         .orecf().set_bit()
                     );
                 }
+
+                pub fn clear_idle(&mut self) {
+                    let icr = unsafe { &(*$USARTX::ptr()).icr };
+                    icr.write(|w| w.idlecf().set_bit());
+                }
             }
 
             /// DMA operations.
