@@ -268,7 +268,7 @@ macro_rules! usart {
                     usart.cr3.write(|w|
                         w
                             // Stop DMA transfer on reception error
-                            .ddre().disabled()
+                            .ddre().not_disabled()
                             // Enable DMA
                             .dmat().enabled()
                             .dmar().enabled()
