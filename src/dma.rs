@@ -2,7 +2,6 @@
 //!
 //! See STM32L0x2 Reference Manual, chapter 11.
 
-
 // Currently the only module using DMA is STM32L082-only, which leads to unused
 // warnings when compiling for STM32L0x2. Rather than making the whole DMA
 // module STM32L082-only, which wouldn't reflect the reality, I've added this
@@ -12,31 +11,18 @@
 // DMA.
 #![cfg_attr(not(feature = "stm32l082"), allow(dead_code, unused_imports))]
 
-
 use core::{
-    fmt,
-    mem,
+    fmt, mem,
     ops::Deref,
     pin::Pin,
-    sync::atomic::{
-        compiler_fence,
-        Ordering,
-    }
+    sync::atomic::{compiler_fence, Ordering},
 };
 
 use as_slice::AsSlice;
 
 use crate::{
     i2c,
-    pac::{
-        self,
-        dma1::ch::cr,
-        I2C1,
-        I2C2,
-        I2C3,
-        USART1,
-        USART2,
-    },
+    pac::{self, dma1::ch::cr, I2C1, I2C2, I2C3, LPUART1, USART1, USART2},
     rcc::Rcc,
     serial,
 };
@@ -44,14 +30,13 @@ use crate::{
 #[cfg(feature = "stm32l082")]
 use crate::aes;
 
-
 /// Entry point to the DMA API
 pub struct DMA {
     /// Handle to the DMA peripheral
     pub handle: Handle,
 
     /// DMA channels
-    pub channels: Channels
+    pub channels: Channels,
 }
 
 impl DMA {
@@ -65,28 +50,26 @@ impl DMA {
         rcc.rb.ahbenr.modify(|_, w| w.dmaen().set_bit());
 
         Self {
-            handle:   Handle { dma },
+            handle: Handle { dma },
             channels: Channels::new(),
         }
     }
 }
-
 
 /// Handle to the DMA peripheral
 pub struct Handle {
     dma: pac::DMA1,
 }
 
-
 pub struct Transfer<T, C, B, State> {
-    res:    TransferResources<T, C, B>,
+    res: TransferResources<T, C, B>,
     _state: State,
 }
 
 impl<T, C, B> Transfer<T, C, B, Ready>
-    where
-        T: Target<C>,
-        C: Channel,
+where
+    T: Target<C>,
+    C: Channel,
 {
     /// Internal constructor
     ///
@@ -104,20 +87,19 @@ impl<T, C, B> Transfer<T, C, B, Ready>
     ///
     /// Panics, if the buffer is not aligned to the word size.
     pub(crate) unsafe fn new<Word>(
-        handle:    &mut Handle,
-        target:    T,
-        channel:   C,
-        buffer:    Pin<B>,
+        handle: &mut Handle,
+        target: T,
+        channel: C,
+        buffer: Pin<B>,
         num_words: usize,
-        address:   u32,
-        priority:  Priority,
-        dir:       Direction,
-    )
-        -> Self
-        where
-            B:         Deref,
-            B::Target: Buffer<Word>,
-            Word:      SupportedWordSize,
+        address: u32,
+        priority: Priority,
+        dir: Direction,
+    ) -> Self
+    where
+        B: Deref,
+        B::Target: Buffer<Word>,
+        Word: SupportedWordSize,
     {
         assert!(buffer.len() >= num_words);
         assert!(num_words <= u16::max_value() as usize);
@@ -127,7 +109,7 @@ impl<T, C, B> Transfer<T, C, B, Ready>
         channel.set_peripheral_address(handle, address);
         channel.set_memory_address(handle, buffer.as_ptr() as u32);
         channel.set_transfer_len(handle, num_words as u16);
-        channel.configure::<Word>(handle, priority.0, dir.0);
+        channel.configure::<Word>(handle, priority.0, dir.0, false);
 
         Transfer {
             res: TransferResources {
@@ -157,14 +139,15 @@ impl<T, C, B> Transfer<T, C, B, Ready>
         self.res.channel.start();
 
         Transfer {
-            res:    self.res,
+            res: self.res,
             _state: Started,
         }
     }
 }
 
 impl<T, C, B> Transfer<T, C, B, Started>
-    where C: Channel
+where
+    C: Channel,
 {
     /// Indicates whether the transfer is still ongoing
     pub fn is_active(&self) -> bool {
@@ -179,12 +162,7 @@ impl<T, C, B> Transfer<T, C, B, Started>
     ///
     /// This function will return immediately, if [`Transfer::is_active`]
     /// returns `false`.
-    pub fn wait(self)
-        -> Result<
-            TransferResources<T, C, B>,
-            (TransferResources<T, C, B>, Error)
-        >
-    {
+    pub fn wait(self) -> Result<TransferResources<T, C, B>, (TransferResources<T, C, B>, Error)> {
         while self.res.channel.is_active() {
             if self.res.channel.error_occured() {
                 return Err((self.res, Error));
@@ -203,11 +181,10 @@ impl<T, C, B> Transfer<T, C, B, Started>
     }
 }
 
-
 pub struct TransferResources<T, C, B> {
-    pub target:  T,
+    pub target: T,
     pub channel: C,
-    pub buffer:  Pin<B>,
+    pub buffer: Pin<B>,
 }
 
 // Since `TransferResources` is used in the error variant of a `Result`, it
@@ -219,7 +196,6 @@ impl<T, C, B> fmt::Debug for TransferResources<T, C, B> {
         write!(f, "TransferResources {{ ... }}")
     }
 }
-
 
 /// The priority of the DMA transfer
 pub struct Priority(cr::PL_A);
@@ -242,7 +218,6 @@ impl Priority {
     }
 }
 
-
 /// The direction of the DMA transfer
 pub(crate) struct Direction(cr::DIR_A);
 
@@ -256,26 +231,25 @@ impl Direction {
     }
 }
 
-
 #[derive(Debug)]
 pub struct Error;
-
 
 pub trait Channel: Sized {
     fn select_target<T: Target<Self>>(&self, _: &mut Handle, target: &T);
     fn set_peripheral_address(&self, _: &mut Handle, address: u32);
     fn set_memory_address(&self, _: &mut Handle, address: u32);
     fn set_transfer_len(&self, _: &mut Handle, len: u16);
-    fn configure<Word>(&self,
-        _:        &mut Handle,
-        priority: cr::PL_A,
-        dir:      cr::DIR_A,
-    )
-        where Word: SupportedWordSize;
+    fn get_transfers_left(&self, handle: &mut Handle) -> u16;
+    fn configure<Word>(&self, _: &mut Handle, priority: cr::PL_A, dir: cr::DIR_A, circular: bool)
+    where
+        Word: SupportedWordSize;
     fn enable_interrupts(&self, interrupts: Interrupts);
     fn start(&self);
     fn is_active(&self) -> bool;
+    fn is_complete(&self) -> bool;
+    fn is_half_complete(&self) -> bool;
     fn clear_complete_flag(&self);
+    fn clear_half_complete_flag(&self);
     fn error_occured(&self) -> bool;
 }
 
@@ -287,8 +261,10 @@ macro_rules! impl_channel {
             $chfield:ident,
             $cxs:ident,
             $tcif:ident,
+            $htif:ident,
             $teif:ident,
             $ctcif:ident,
+            $chtif:ident,
             $cteif:ident;
         )*
     ) => {
@@ -333,10 +309,15 @@ macro_rules! impl_channel {
                     handle.dma.$chfield.ndtr.write(|w| w.ndt().bits(len));
                 }
 
+                fn get_transfers_left(&self, handle: &mut Handle) -> u16 {
+                    handle.dma.$chfield.ndtr.read().ndt().bits()
+                }
+
                 fn configure<Word>(&self,
                     handle:   &mut Handle,
                     priority: cr::PL_A,
                     dir:      cr::DIR_A,
+                    circular: bool
                 )
                     where Word: SupportedWordSize
                 {
@@ -355,7 +336,7 @@ macro_rules! impl_channel {
                             // Don't increment peripheral pointer
                             .pinc().disabled()
                             // Circular mode disabled
-                            .circ().disabled()
+                            .circ().bit(circular)
                             // Data transfer direction
                             .dir().variant(dir)
                             // Disable interrupts
@@ -400,6 +381,16 @@ macro_rules! impl_channel {
                     }
                 }
 
+                fn is_complete(&self) -> bool {
+                    let dma = unsafe { &*pac::DMA1::ptr() };
+                    dma.isr.read().$tcif().is_complete()
+                }
+
+                fn is_half_complete(&self) -> bool {
+                    let dma = unsafe { &*pac::DMA1::ptr() };
+                    dma.isr.read().$htif().is_half()
+                }
+
                 fn clear_complete_flag(&self) {
                     // This is safe, for the following reasons:
                     // - We only do one atomic read of ISR.
@@ -410,7 +401,19 @@ macro_rules! impl_channel {
 
                     if dma.isr.read().$tcif().is_complete() {
                         dma.ifcr.write(|w| w.$ctcif().set_bit());
-                        dma.$chfield.cr.modify(|_, w| w.en().disabled());
+                    }
+                }
+
+                fn clear_half_complete_flag(&self) {
+                    // This is safe, for the following reasons:
+                    // - We only do one atomic read of ISR.
+                    // - IFCR is a stateless register and we do one atomic
+                    //   write.
+                    // - This channel has exclusive access to CCRx.
+                    let dma = unsafe { &*pac::DMA1::ptr() };
+
+                    if dma.isr.read().$htif().is_half() {
+                        dma.ifcr.write(|w| w.$chtif().set_bit());
                     }
                 }
 
@@ -436,21 +439,20 @@ macro_rules! impl_channel {
 
 impl_channel!(
     Channel1, channel1, ch1,
-        c1s, tcif1, teif1, ctcif1, cteif1;
+        c1s, tcif1, htif1, teif1, ctcif1, chtif1, cteif1;
     Channel2, channel2, ch2,
-        c2s, tcif2, teif2, ctcif2, cteif2;
+        c2s, tcif2, htif2, teif2, ctcif2, chtif2, cteif2;
     Channel3, channel3, ch3,
-        c3s, tcif3, teif3, ctcif3, cteif3;
+        c3s, tcif3, htif3, teif3, ctcif3, chtif3, cteif3;
     Channel4, channel4, ch4,
-        c4s, tcif4, teif4, ctcif4, cteif4;
+        c4s, tcif4, htif4, teif4, ctcif4, chtif4, cteif4;
     Channel5, channel5, ch5,
-        c5s, tcif5, teif5, ctcif5, cteif5;
+        c5s, tcif5, htif5, teif5, ctcif5, chtif5, cteif5;
     Channel6, channel6, ch6,
-        c6s, tcif6, teif6, ctcif6, cteif6;
+        c6s, tcif6, htif6, teif6, ctcif6, chtif6, cteif6;
     Channel7, channel7, ch7,
-        c7s, tcif7, teif7, ctcif7, cteif7;
+        c7s, tcif7, htif7, teif7, ctcif7, chtif7, cteif7;
 );
-
 
 pub trait Target<Channel> {
     const REQUEST: u8;
@@ -509,13 +511,17 @@ impl_target!(
     aes::Rx, Channel3, 11;
 );
 
+#[cfg(feature = "stm32l0x3")]
+impl_target!(
+    serial::Tx<LPUART1>, Channel2, 5;
+    serial::Rx<LPUART1>, Channel3, 5;
+);
 
 /// Indicates that a DMA transfer is ready
 pub struct Ready;
 
 /// Indicates that a DMA transfer has been started
 pub struct Started;
-
 
 /// Implemented for types, that can be used as a buffer for DMA transfers
 pub(crate) trait Buffer<Word> {
@@ -524,7 +530,8 @@ pub(crate) trait Buffer<Word> {
 }
 
 impl<T, Word> Buffer<Word> for T
-    where T: ?Sized + AsSlice<Element=Word>
+where
+    T: ?Sized + AsSlice<Element = Word>,
 {
     fn as_ptr(&self) -> *const Word {
         self.as_slice().as_ptr()
@@ -534,7 +541,6 @@ impl<T, Word> Buffer<Word> for T
         self.as_slice().len()
     }
 }
-
 
 /// Can be used as a fallback [`Buffer`], if safer implementations can't be used
 pub(crate) struct PtrBuffer<Word> {
@@ -562,7 +568,6 @@ impl<Word> Buffer<Word> for PtrBuffer<Word> {
     }
 }
 
-
 pub trait SupportedWordSize {
     fn size() -> cr::MSIZE_A;
 }
@@ -585,19 +590,18 @@ impl SupportedWordSize for u32 {
     }
 }
 
-
 #[derive(Clone, Copy)]
 pub struct Interrupts {
-    pub transfer_error:    bool,
-    pub half_transfer:     bool,
+    pub transfer_error: bool,
+    pub half_transfer: bool,
     pub transfer_complete: bool,
 }
 
 impl Default for Interrupts {
     fn default() -> Self {
         Self {
-            transfer_error:    false,
-            half_transfer:     false,
+            transfer_error: false,
+            half_transfer: false,
             transfer_complete: false,
         }
     }
