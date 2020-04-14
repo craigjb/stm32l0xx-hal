@@ -453,6 +453,11 @@ macro_rules! usart {
                     );
                 }
 
+                pub fn is_idle(&self) -> bool {
+                    let isr = unsafe { &(*$USARTX::ptr()).isr };
+                    isr.read().idle().bit_is_set()
+                }
+
                 pub fn clear_idle(&mut self) {
                     let icr = unsafe { &(*$USARTX::ptr()).icr };
                     icr.write(|w| w.idlecf().set_bit());
@@ -573,6 +578,39 @@ macro_rules! usart {
 
 #[cfg(any(feature = "stm32l0x2", feature = "stm32l0x3"))]
             impl Tx<$USARTX> {
+                pub fn is_transmission_complete(&self) -> bool {
+                    let isr = unsafe { &(*$USARTX::ptr()).isr };
+                    isr.read().tc().bit_is_set()
+                }
+
+                pub fn clear_transmission_complete(&mut self) {
+                    unsafe { (*$USARTX::ptr()).icr.write(|w| {w.tccf().set_bit()}); }
+                }
+
+                pub fn disable_dma(&mut self) {
+                    unsafe {
+                        (*$USARTX::ptr()).cr3.modify(|_, w| {w.dmat().clear_bit()});
+                    }
+                }
+
+                pub fn enable_dma(&mut self) {
+                    unsafe {
+                        (*$USARTX::ptr()).cr3.modify(|_, w| {w.dmat().set_bit()});
+                    }
+                }
+
+                pub fn enable_tc_interrupt(&mut self) {
+                    unsafe {
+                        (*$USARTX::ptr()).cr1.modify(|_, w| {w.tcie().set_bit()});
+                    }
+                }
+
+                pub fn disable_tc_interrupt(&mut self) {
+                    unsafe {
+                        (*$USARTX::ptr()).cr1.modify(|_, w| {w.tcie().clear_bit()});
+                    }
+                }
+
                 pub fn write_all<Buffer, Channel>(self,
                     dma:     &mut dma::Handle,
                     buffer:  Pin<Buffer>,
