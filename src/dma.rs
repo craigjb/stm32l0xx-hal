@@ -245,6 +245,8 @@ pub trait Channel: Sized {
         Word: SupportedWordSize;
     fn enable_interrupts(&self, interrupts: Interrupts);
     fn start(&self);
+    fn stop(&self);
+    fn is_enabled(&self) -> bool;
     fn is_active(&self) -> bool;
     fn is_complete(&self) -> bool;
     fn is_half_complete(&self) -> bool;
@@ -366,6 +368,20 @@ macro_rules! impl_channel {
 
                     // Start transfer
                     ccr.modify(|_, w| w.en().enabled());
+                }
+
+                fn stop(&self) {
+                    // Safe, because we're only accessing a register that this
+                    // channel has exclusive access to.
+                    let ccr = &unsafe { &*pac::DMA1::ptr() }.$chfield.cr;
+
+                    // Stop transfer
+                    ccr.modify(|_, w| w.en().disabled());
+                }
+
+                fn is_enabled(&self) -> bool {
+                    let ccr = &unsafe { &*pac::DMA1::ptr() }.$chfield.cr;
+                    ccr.read().en().is_enabled()
                 }
 
                 fn is_active(&self) -> bool {
